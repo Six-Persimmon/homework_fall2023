@@ -18,6 +18,7 @@ def sample_trajectory(env, policy, max_path_length, render=False):
     
     # initialize env for the beginning of a new rollout
     ob =  env.reset() # TODO: initial observation after resetting the env
+    ob = ob.astype(np.float32)
 
     # init vars
     obs, acs, rewards, next_obs, terminals, image_obs = [], [], [], [], [], []
@@ -33,15 +34,18 @@ def sample_trajectory(env, policy, max_path_length, render=False):
             image_obs.append(cv2.resize(img, dsize=(250, 250), interpolation=cv2.INTER_CUBIC))
     
         # TODO use the most recent ob to decide what to do
-        ac = TODO # HINT: this is a numpy array
-        ac = ac[0]
+        dist = policy.forward(ptu.from_numpy(ob).float()) 
+        ac = ptu.to_numpy(dist.sample())  # HINT: this is a numpy array
+        if ac.ndim ==2 and ac.shape[0] == 1:  # sometimes the action is a batch of size 1
+            ac = ac[0]
+        # print("Action shape:", ac.shape, "Expected:", env.action_space.shape)
 
         # TODO: take that action and get reward and next ob
-        next_ob, rew, done, _ = TODO
-        
+        next_ob, rew, done, _ = env.step(ac)
+
         # TODO rollout can end due to done, or due to max_path_length
         steps += 1
-        rollout_done = TODO # HINT: this is either 0 or 1
+        rollout_done = 1 if done or steps >= max_path_length else 0
         
         # record result of taking that action
         obs.append(ob)
@@ -107,7 +111,7 @@ def convert_listofrollouts(paths, concat_rew=True):
     if concat_rew:
         rewards = np.concatenate([path["reward"] for path in paths])
     else:
-        rewards = [path["reward"] for path in paths]
+        rewards = [path["reward"] for path in paths] # keeps the individual episode rewards
     next_observations = np.concatenate([path["next_observation"] for path in paths])
     terminals = np.concatenate([path["terminal"] for path in paths])
     return observations, actions, rewards, next_observations, terminals

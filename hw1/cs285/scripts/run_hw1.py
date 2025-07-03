@@ -86,10 +86,10 @@ def run_training_loop(params):
 
     # TODO: Implement missing functions in this class.
     actor = MLPPolicySL(
-        ac_dim,
-        ob_dim,
-        params['n_layers'],
-        params['size'],
+        ac_dim=ac_dim,
+        ob_dim=ob_dim,
+        n_layers=params['n_layers'],
+        size=params['size'],
         learning_rate=params['learning_rate'],
     )
 
@@ -129,10 +129,13 @@ def run_training_loop(params):
         else:
             # DAGGER training from sampled data relabeled by expert
             assert params['do_dagger']
+            batch_size = params['batch_size']
+            print(f"\nCollecting {batch_size} transitions from the environment...")
             # TODO: collect `params['batch_size']` transitions
             # HINT: use utils.sample_trajectories
             # TODO: implement missing parts of utils.sample_trajectory
-            paths, envsteps_this_batch = TODO
+            paths, envsteps_this_batch = utils.sample_trajectories(
+                env, actor, batch_size, params['ep_len'])
 
             # relabel the collected obs with actions from a provided expert policy
             if params['do_dagger']:
@@ -141,7 +144,12 @@ def run_training_loop(params):
                 # TODO: relabel collected obsevations (from our policy) with labels from expert policy
                 # HINT: query the policy (using the get_action function) with paths[i]["observation"]
                 # and replace paths[i]["action"] with these expert labels
-                paths = TODO
+                paths = paths
+                for i, path in enumerate(paths):
+                    obs = path['observation']
+                    expert_action = expert_policy.get_action(obs)
+                    print(f"The expert action shape is {expert_action.shape}, it is {expert_action}")
+                    path['action'] = expert_action
 
         total_envsteps += envsteps_this_batch
         # add collected data to replay buffer
@@ -157,7 +165,15 @@ def run_training_loop(params):
           # HINT2: use np.random.permutation to sample random indices
           # HINT3: return corresponding data points from each array (i.e., not different indices from each array)
           # for imitation learning, we only need observations and actions.  
-          ob_batch, ac_batch = TODO
+          sample_size = params['train_batch_size']
+        #   print(f'the obs of replay buffer is {replay_buffer.obs.shape[0]}')
+        #   if len(replay_buffer) < sample_size or not isinstance(replay_buffer, int):
+        #       print(f"Not enough samples in replay buffer. Required: {sample_size}, Available: {len(replay_buffer)}")
+        #       continue
+
+          perm_idx = np.random.permutation(len(replay_buffer))[:sample_size]
+
+          ob_batch, ac_batch = replay_buffer.obs[perm_idx], replay_buffer.acs[perm_idx]
 
           # use the sampled data to train an agent
           train_log = actor.update(ob_batch, ac_batch)
@@ -214,7 +230,7 @@ def main():
     parser.add_argument('--env_name', '-env', type=str, help=f'choices: {", ".join(MJ_ENV_NAMES)}', required=True)
     parser.add_argument('--exp_name', '-exp', type=str, default='pick an experiment name', required=True)
     parser.add_argument('--do_dagger', action='store_true')
-    parser.add_argument('--ep_len', type=int)
+    parser.add_argument('--ep_len', type=int) # length of max path length
 
     parser.add_argument('--num_agent_train_steps_per_iter', type=int, default=1000)  # number of gradient steps for training policy (per iter in n_iter)
     parser.add_argument('--n_iter', '-n', type=int, default=1)
